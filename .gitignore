@@ -1,0 +1,44 @@
+# -------------------------
+# Python
+# -------------------------
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+*.sqlite3
+
+# -------------------------
+# Airflow generated files
+# -------------------------
+logs/
+logs/*
+!logs/.gitkeep
+
+airflow.db
+airflow.cfg
+webserver_config.py
+
+# Airflow dags compiled
+.dagrun*
+
+# -------------------------
+# OS / IDE
+# -------------------------
+.DS_Store
+Thumbs.db
+
+# VSCode
+.vscode/
+
+# -------------------------
+# Jupyter
+# -------------------------
+.ipynb_checkpoints/
+
+# -------------------------
+# Data files (optional)
+# Keep raw & processed clean—your call
+# -------------------------
+data/processed/*
+data/intermediate/*
+!data/processed/.gitkeep
