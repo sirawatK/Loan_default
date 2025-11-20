@@ -33,5 +33,7 @@ Then access Airflow at:
     After triggering the DAG, the following files will be created:
 
     data/processed/clean_loan_default.csv
+    
     data/processed/train.csv
+    
     data/processed/test.csv
