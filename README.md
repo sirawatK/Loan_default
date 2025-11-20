@@ -2,24 +2,36 @@
 MLOPs Project
 
 
-1 Clone Repo
-git clone https://github.com/PondSterlingZx/Loan_default.git
-cd Loan_default
+1. Clone Repo
 
-2 Install requirements
-pip install -r requirements.txt
+    git clone https://github.com/PondSterlingZx/Loan_default.git
+    
+    cd Loan_default
 
-3 Start Airflow
-docker-compose up -d
 
-then access 
-http://localhost:8080
-  login with
+
+2. Install requirements
+
+
+    pip install -r requirements.txt
+
+
+3. Start Airflow
+
+
+    docker-compose up -d
+
+
+Then access Airflow at:
+
+    http://localhost:8080
     username: admin
     password: admin
 
+4. Run DAG once to generate processed data
 
-Run DAG once to get
-  data/processed/clean_loan_default.csv
-  data/processed/train.csv
-  data/processed/test.csv
+    After triggering the DAG, the following files will be created:
+
+    data/processed/clean_loan_default.csv
+    data/processed/train.csv
+    data/processed/test.csv
