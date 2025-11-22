@@ -1,0 +1,8 @@
+pandas>=2.0.0
+numpy
+scikit-learn
+joblib
+mlflow-skinny>=2.9.2
+evidently
+psycopg2-binary
+
