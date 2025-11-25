@@ -50,6 +50,7 @@ x-airflow-common: &airflow-common
         - ${AIRFLOW_PROJ_DIR:-.}/reports:/opt/airflow/reports:z
         - ${AIRFLOW_PROJ_DIR:-.}/src:/opt/airflow/src:z
         - ${AIRFLOW_PROJ_DIR:-.}/data:/opt/airflow/data:z
+        - ${AIRFLOW_PROJ_DIR:-.}/mlflow_data:/mlflow:z
 
     user: "${AIRFLOW_UID:-50000}:0"
     depends_on: &airflow-common-depends-on
@@ -187,13 +188,14 @@ services:
     # --- MLOPS SERVICES ---
 
     mlflow:
-        image: ghcr.io/mlflow/mlflow:v2.9.2
+        image: ghcr.io/mlflow/mlflow:v2.22.1
         # Expose internal port only (Access via Nginx /mlflow/)
         expose:
             - "5000"
-        command: mlflow server --backend-store-uri sqlite:////mlflow/mlflow.db --default-artifact-root /mlflow/artifacts --host 0.0.0.0
+        command: mlflow server --backend-store-uri sqlite:////mlflow/mlflow.db --default-artifact-root /mlflow/artifacts --host 0.0.0.0 --serve-artifacts
         volumes:
-            - mlflow_data:/mlflow:z
+            - ${AIRFLOW_PROJ_DIR:-.}/mlflow_data:/mlflow:z
+        user: "${AIRFLOW_UID:-50000}:0"
 
     fastapi:
         build:
