@@ -189,7 +189,6 @@ services:
 
     mlflow:
         image: ghcr.io/mlflow/mlflow:v2.22.1
-        # Expose internal port only (Access via Nginx /mlflow/)
         expose:
             - "5000"
         command: mlflow server --backend-store-uri sqlite:////mlflow/mlflow.db --default-artifact-root /mlflow/artifacts --host 0.0.0.0 --serve-artifacts
@@ -205,8 +204,7 @@ services:
         volumes:
             - ${AIRFLOW_PROJ_DIR:-.}/models:/app/models:z
             - ${AIRFLOW_PROJ_DIR:-.}/data/logs:/app/logs:z
-        environment:
-            - MODEL_PATH=/app/models/production_model.pkl
+            - ${AIRFLOW_PROJ_DIR:-.}/src:/app/src:z
         depends_on:
             - mlflow
 
