@@ -1,5 +1,6 @@
 import pandas as pd
 import numpy as np
+from sklearn.utils import resample
 try:
     
     from src.data.feature_engineering import add_features
@@ -53,15 +54,26 @@ def build_dataset(input_path, output_path):
     df = clean_categories(df)
     df = remove_outliers(df)
     df = add_features(df)
+    df = df.drop(columns="LoanID")
 
     df = pd.get_dummies(df,
                         columns=['Education','EmploymentType','MaritalStatus',
                                  'LoanPurpose','InterestLevel','DTIBucket'],
                         drop_first=True)
-
-    logger.info(f"Final cleaned dataset shape: {df.shape}")
-
-    df.to_csv(output_path, index=False)
+    
+    df_minority = df[df["Default"]==1]
+    small_df_count = len(df_minority)
+    df_majority_undersampled = resample(
+        df[df["Default"]==0],
+        replace=False,
+        n_samples=small_df_count,
+        random_state=42
+    )
+    df_balanced = pd.concat([df_majority_undersampled,df_minority])
+    logger.info(f"Final cleaned dataset shape: {df_balanced.shape}")
+    logger.info(f"Final cleaned dataset value distribution: {df_balanced["Default"].value_counts()}")
+    
+    df_balanced.to_csv(output_path, index=False)
     logger.info(f"Saved cleaned dataset to: {output_path}")
 
 
