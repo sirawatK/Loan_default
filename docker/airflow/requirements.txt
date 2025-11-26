@@ -2,7 +2,7 @@ pandas>=2.0.0
 numpy
 scikit-learn
 joblib
-mlflow-skinny>=2.9.2
-evidently
+mlflow-skinny==2.22.1
+evidently==0.4.33
 psycopg2-binary
-
+xgboost
