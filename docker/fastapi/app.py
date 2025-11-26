@@ -9,6 +9,7 @@ import gzip
 import shutil
 import sys
 import warnings
+import traceback
 
 # Suppress sklearn version warnings
 warnings.filterwarnings("ignore", category=UserWarning)
@@ -19,7 +20,7 @@ sys.path.append("/app")
 try:
     from src.data.data_pipeline import build_dataset
 except ImportError:
-    print("Warning: Could not import src.data.data_pipeline. Ensure src is mounted to /app/src")
+    print("Warning: Could not import src.data.data_pipeline. Ensure 'src' is mounted to /app/src")
 
 app = FastAPI()
 
@@ -51,6 +52,37 @@ def load_model():
         print(f"Error loading model: {e}")
         return None
 
+def align_features(df, model):
+    """
+    Critical Fix: Ensures the input DataFrame has the EXACT same columns
+    as the trained model expects, in the correct order.
+    """
+    model_features = None
+
+    # 1. Try to detect expected features from the model object
+    if hasattr(model, "feature_names_in_"):
+        model_features = model.feature_names_in_
+    elif hasattr(model, "get_booster"): # XGBoost specific
+        try:
+            model_features = model.get_booster().feature_names
+        except:
+            pass
+
+    if model_features is None:
+        print("Warning: Could not detect model feature names. Skipping alignment.")
+        return df
+
+    # 2. Add missing columns (fill with 0)
+    missing_cols = set(model_features) - set(df.columns)
+    if missing_cols:
+        print(f"Debug: Adding {len(missing_cols)} missing columns (filled with 0) to match model.")
+        for c in missing_cols:
+            df[c] = 0
+
+    # 3. Drop extra columns and Reorder to match model exactly
+    # This prevents "ValueError: Feature mismatch"
+    return df[model_features]
+
 @app.post("/predict_batch")
 async def predict_batch(file: UploadFile = File(...)):
     # 1. Validation
@@ -63,12 +95,12 @@ async def predict_batch(file: UploadFile = File(...)):
     if model is None:
         raise HTTPException(status_code=503, detail="Model not ready. Train in Airflow first.")
 
-    # 3. Process the file using the SHARED PIPELINE from src/
+    # 3. Process the file using the SHARED PIPELINE
     raw_temp_path = os.path.join(TEMP_DIR, "temp_raw.csv")
     clean_temp_path = os.path.join(TEMP_DIR, "temp_clean.csv")
 
     try:
-        # A. Write uploaded file to disk (Raw)
+        # A. Write uploaded file to disk
         with open(raw_temp_path, "wb") as buffer:
             if is_gzip:
                 content = await file.read()
@@ -76,22 +108,17 @@ async def predict_batch(file: UploadFile = File(...)):
             else:
                 shutil.copyfileobj(file.file, buffer)
 
-        # A.2 Capture LoanIDs from Raw Data (In Memory) - Optimization
-        # We read only the ID column immediately to save memory and avoid re-reading later
+        # A.2 Capture LoanIDs (Optimization)
         raw_id_df = pd.DataFrame()
         try:
-            # Peek columns first
             cols = pd.read_csv(raw_temp_path, nrows=0).columns
             if 'LoanID' in cols:
                 raw_id_df = pd.read_csv(raw_temp_path, usecols=['LoanID'])
             else:
-                # If no LoanID, we read just one column to capture the index/length
-                # This is efficient for large files compared to reading all columns
                 temp_df = pd.read_csv(raw_temp_path, usecols=[0])
                 raw_id_df = pd.DataFrame(index=temp_df.index)
         except Exception as e:
             print(f"Warning: Could not extract LoanIDs upfront: {e}")
-            # Fallback: raw_id_df remains empty, logic below will handle it
 
         # B. Run the Cleaning Pipeline
         print(f"Running build_dataset on {raw_temp_path}...")
@@ -100,6 +127,8 @@ async def predict_batch(file: UploadFile = File(...)):
         except NameError:
              raise HTTPException(status_code=500, detail="Pipeline function 'build_dataset' not found.")
         except Exception as e:
+             # [FIX] Log full error to console
+             traceback.print_exc()
              raise HTTPException(status_code=400, detail=f"Data Pipeline Error: {str(e)}")
 
         # C. Read the Cleaned Data
@@ -108,46 +137,47 @@ async def predict_batch(file: UploadFile = File(...)):
 
         df_clean = pd.read_csv(clean_temp_path)
 
-        # D. PREPARE FOR PREDICTION (Robust Logic)
+        # D. PREPARE FOR PREDICTION
         output_ids = None
 
-        # Logic 1: Check if LoanID survived in the clean file (Best Case - Pipeline preserved it)
+        # Logic 1: Check if LoanID survived
         if 'LoanID' in df_clean.columns:
             output_ids = df_clean['LoanID']
             df_clean = df_clean.drop(columns=['LoanID'])
-
-        # Logic 2: Map back to the in-memory raw IDs (Only if row counts match perfectly)
+        # Logic 2: Map back to raw IDs
         elif not raw_id_df.empty and len(raw_id_df) == len(df_clean):
             if 'LoanID' in raw_id_df.columns:
                 output_ids = raw_id_df['LoanID']
             else:
                 output_ids = raw_id_df.index
-
-        # Logic 3: Outliers removed AND LoanID missing (Fallback State)
+        # Logic 3: Fallback
         else:
-            msg = (
-                f"Data pipeline removed rows (Raw: {len(raw_id_df)}, Clean: {len(df_clean)}), "
-                "and 'LoanID' is missing in cleaned data. "
-                "Returning partial results with sequential IDs."
-            )
+            msg = f"Row count changed (Raw: {len(raw_id_df)}, Clean: {len(df_clean)}). Using sequential IDs."
             print(f"Warning: {msg}")
-            # Fallback: Use simple range index for the surviving rows
-            # This prevents the 422 Error, but IDs won't map 1:1 to input
             output_ids = pd.Series(range(len(df_clean)), name='RowIndex_Clean')
 
-        # Drop Target if present
+        # Drop Target if present (Safety check)
         if 'Default' in df_clean.columns:
             df_clean = df_clean.drop(columns=['Default'])
 
-        # E. Predict
+        # E. Predict (With Alignment Fix)
         try:
+            # [FIX] Align features before predicting to prevent XGBoost mismatch
+            df_clean = align_features(df_clean, model)
             predictions = model.predict(df_clean)
         except Exception as e:
+             # [FIX] Log full error to console
+             traceback.print_exc()
              raise HTTPException(status_code=400, detail=f"Model Prediction Error: {str(e)}")
 
         # F. Prepare Result
         output_df = pd.DataFrame()
-        output_df['LoanID'] = output_ids.values if output_ids is not None else range(len(predictions))
+        # Handle explicit indices vs Series vs Arrays
+        if hasattr(output_ids, 'values'):
+            output_df['LoanID'] = output_ids.values
+        else:
+            output_df['LoanID'] = output_ids
+
         output_df['predicted_default'] = predictions
 
         # G. Return CSV
@@ -157,7 +187,6 @@ async def predict_batch(file: UploadFile = File(...)):
         response = StreamingResponse(iter([stream.getvalue()]), media_type="text/csv")
         response.headers["Content-Disposition"] = "attachment; filename=predictions_result.csv"
 
-        # Add warning header if mismatch
         if not raw_id_df.empty and len(raw_id_df) != len(df_clean):
              response.headers["X-Row-Count-Mismatch"] = f"Input: {len(raw_id_df)}, Output: {len(df_clean)}"
 
@@ -166,7 +195,6 @@ async def predict_batch(file: UploadFile = File(...)):
     except HTTPException as he:
         raise he
     except Exception as e:
-        import traceback
         traceback.print_exc()
         raise HTTPException(status_code=500, detail=f"System Error: {str(e)}")
     finally:
