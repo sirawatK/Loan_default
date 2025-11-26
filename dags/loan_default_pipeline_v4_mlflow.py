@@ -176,6 +176,7 @@ def train_evaluate():
         model_name = element[0]
         params = element[1]
         model = element[2]
+        model_file_name = element[5]
         report = reports[i]
         
         with mlflow.start_run(run_name=f"{model_name}_{datetime.now().strftime('%H%M')}") as run:
@@ -203,22 +204,47 @@ def train_evaluate():
             best_model_name = model_name
             best_run_id = current_run_id
             best_run_name = current_run_name
+            best_model_file_name = model_file_name
 
     # 4. Output Winner
     print("-" * 30)
     print(f"🏆 BEST MODEL: {best_model_name} with Recall: {best_rec:.4f}")
     print("-" * 30)
-    model_uri = f"runs:/{best_run_id}/model"
+    if best_run_id:
+        model_uri = f"runs:/{best_run_id}/model"
+    
     try:
-        # We pass the artifact URI to the register_model function
-        mlflow.register_model(
+        # 1. Register the best model
+        model_info = mlflow.register_model(
             model_uri=model_uri, 
             name=MODEL_REGISTRY_NAME
         )
-        print(f"Model successfully registered as new version of '{MODEL_REGISTRY_NAME}'")
+        print(f"Model successfully registered as new version '{model_info.version}' of '{MODEL_REGISTRY_NAME}'")
+        
+        # 2. Tag the newly registered version as 'Champion'
+        # Note: We use 'set_model_version_tag' for custom tags like "Champion" 
+        # or 'transition_model_version_stage' to move it to 'Production' (standard stage)
+        client.set_model_version_tag(
+            name=MODEL_REGISTRY_NAME,
+            version=model_info.version,
+            key="Status",
+            value="Production"
+        )
+        print(f"Model version {model_info.version} tagged as 'Production'.")
+        
     except Exception as e:
-        print(f"Error registering model: {e}")
-    mlflow.register_model(model_uri=model_uri, name=best_run_name)
+        print(f"Error registering or tagging model: {e}")
+
+    best_model_info = {
+        "model": best_model_name,
+        "file": best_model_file_name,
+        "recall": best_rec
+    }
+
+    # Write the dictionary to the file as JSON
+    with open(os.path.join(MODELS_PATH, "best_model_info.json"), "w") as f:
+        json.dump(best_model_info, f, indent=4)
+
 # --- DAG DEFINITION ---
 
 with DAG(
