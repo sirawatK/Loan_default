@@ -1,0 +1,291 @@
+<!DOCTYPE html>
+<html lang="en">
+    <head>
+        <meta charset="UTF-8" />
+        <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+        <title>MLOps Prediction Portal</title>
+        <script src="https://cdn.tailwindcss.com"></script>
+        <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" />
+    </head>
+    <body class="bg-slate-50 min-h-screen flex items-center justify-center p-4">
+        <div class="bg-white p-8 rounded-xl shadow-xl w-full max-w-5xl border border-slate-100">
+            <!-- Header -->
+            <div class="text-center mb-8">
+                <div class="inline-flex items-center justify-center w-16 h-16 rounded-full bg-indigo-100 text-indigo-600 mb-4">
+                    <i class="fa-solid fa-industry text-2xl"></i>
+                </div>
+                <h1 class="text-3xl font-bold text-slate-800">Loan Default Predictor</h1>
+                <p class="text-slate-500 mt-2">
+                    Upload
+                    <strong>RAW</strong>
+                    customer data. The system handles cleaning & feature engineering automatically.
+                </p>
+            </div>
+
+            <div class="grid grid-cols-1 lg:grid-cols-2 gap-8">
+                <!-- Left Column: Upload -->
+                <div class="space-y-4">
+                    <h2 class="font-semibold text-slate-700 flex items-center gap-2">
+                        <i class="fa-solid fa-cloud-arrow-up"></i>
+                        Upload Raw Data
+                    </h2>
+
+                    <div class="border-2 border-dashed border-slate-300 rounded-xl p-8 text-center hover:bg-slate-50 transition relative group cursor-pointer">
+                        <input type="file" id="csvInput" accept=".csv" class="absolute inset-0 w-full h-full opacity-0 cursor-pointer z-10" onchange="updateFileName()" />
+                        <div class="space-y-2">
+                            <i class="fa-solid fa-file-csv text-4xl text-slate-400 group-hover:text-indigo-500 transition"></i>
+                            <div class="font-medium text-slate-600">Drop CSV here or click</div>
+                            <p id="fileName" class="text-xs text-slate-400 truncate px-4">Max file size: 50MB</p>
+                        </div>
+                    </div>
+
+                    <button
+                        onclick="uploadAndPredict()"
+                        id="predictBtn"
+                        class="w-full bg-gradient-to-r from-indigo-600 to-purple-600 hover:from-indigo-700 hover:to-purple-700 text-white font-bold py-3 px-6 rounded-lg shadow-md hover:shadow-lg transition-all transform hover:-translate-y-0.5 disabled:opacity-50 disabled:cursor-not-allowed disabled:transform-none"
+                    >
+                        Process & Predict
+                    </button>
+
+                    <button onclick="downloadTemplate()" class="w-full mt-2 text-xs text-indigo-500 hover:text-indigo-600 hover:underline flex items-center justify-center gap-1">
+                        <i class="fa-solid fa-file-export"></i>
+                        Download Raw Data Template
+                    </button>
+                </div>
+
+                <!-- Right Column: Raw Format Guide -->
+                <div class="bg-slate-50 rounded-xl p-6 border border-slate-200 flex flex-col h-full">
+                    <h2 class="font-semibold text-slate-700 flex items-center gap-2 mb-4">
+                        <i class="fa-solid fa-database"></i>
+                        Required Raw Columns
+                    </h2>
+                    <p class="text-xs text-slate-500 mb-4">The backend will clean and encode features from these raw columns:</p>
+
+                    <div class="overflow-y-auto max-h-[400px] border border-slate-200 rounded-lg">
+                        <table class="w-full text-xs text-left">
+                            <thead class="bg-slate-100 text-slate-600 sticky top-0 z-10">
+                                <tr>
+                                    <th class="p-2 font-medium border-b">Raw Column</th>
+                                    <th class="p-2 font-medium border-b">Type</th>
+                                    <th class="p-2 font-medium border-b">Valid Values / Example</th>
+                                </tr>
+                            </thead>
+                            <tbody class="text-slate-600 divide-y divide-slate-100 bg-white">
+                                <!-- ID & Demographics -->
+                                <tr>
+                                    <td class="p-2 font-mono text-indigo-600">LoanID</td>
+                                    <td class="p-2">String</td>
+                                    <td class="p-2">Any</td>
+                                </tr>
+                                <tr>
+                                    <td class="p-2 font-mono text-indigo-600">Age</td>
+                                    <td class="p-2">Int</td>
+                                    <td class="p-2">18-100</td>
+                                </tr>
+                                <tr>
+                                    <td class="p-2 font-mono text-indigo-600">Income</td>
+                                    <td class="p-2">Int</td>
+                                    <td class="p-2">Annual Income</td>
+                                </tr>
+
+                                <!-- Categoricals -->
+                                <tr class="bg-slate-50"><td colspan="3" class="p-2 font-semibold text-slate-400 uppercase text-[10px]">Categorical Data</td></tr>
+                                <tr>
+                                    <td class="p-2 font-mono text-indigo-600">Education</td>
+                                    <td class="p-2">String</td>
+                                    <td class="p-2">High School, Bachelor's, Master's, PhD</td>
+                                </tr>
+                                <tr>
+                                    <td class="p-2 font-mono text-indigo-600">EmploymentType</td>
+                                    <td class="p-2">String</td>
+                                    <td class="p-2">Full-time, Part-time, Self-employed, Unemployed</td>
+                                </tr>
+                                <tr>
+                                    <td class="p-2 font-mono text-indigo-600">MaritalStatus</td>
+                                    <td class="p-2">String</td>
+                                    <td class="p-2">Single, Married, Divorced</td>
+                                </tr>
+                                <tr>
+                                    <td class="p-2 font-mono text-indigo-600">LoanPurpose</td>
+                                    <td class="p-2">String</td>
+                                    <td class="p-2">Business, Home, Education, Auto, Other</td>
+                                </tr>
+
+                                <!-- Yes/No Fields -->
+                                <tr class="bg-slate-50"><td colspan="3" class="p-2 font-semibold text-slate-400 uppercase text-[10px]">Binary (Yes/No)</td></tr>
+                                <tr>
+                                    <td class="p-2 font-mono text-indigo-600">HasMortgage</td>
+                                    <td class="p-2">String</td>
+                                    <td class="p-2">Yes, No</td>
+                                </tr>
+                                <tr>
+                                    <td class="p-2 font-mono text-indigo-600">HasDependents</td>
+                                    <td class="p-2">String</td>
+                                    <td class="p-2">Yes, No</td>
+                                </tr>
+                                <tr>
+                                    <td class="p-2 font-mono text-indigo-600">HasCoSigner</td>
+                                    <td class="p-2">String</td>
+                                    <td class="p-2">Yes, No</td>
+                                </tr>
+
+                                <!-- Financials -->
+                                <tr class="bg-slate-50"><td colspan="3" class="p-2 font-semibold text-slate-400 uppercase text-[10px]">Financial Details</td></tr>
+                                <tr>
+                                    <td class="p-2 font-mono text-indigo-600">LoanAmount</td>
+                                    <td class="p-2">Int</td>
+                                    <td class="p-2">Amount requested</td>
+                                </tr>
+                                <tr>
+                                    <td class="p-2 font-mono text-indigo-600">CreditScore</td>
+                                    <td class="p-2">Int</td>
+                                    <td class="p-2">300-850</td>
+                                </tr>
+                                <tr>
+                                    <td class="p-2 font-mono text-indigo-600">MonthsEmployed</td>
+                                    <td class="p-2">Int</td>
+                                    <td class="p-2">Months</td>
+                                </tr>
+                                <tr>
+                                    <td class="p-2 font-mono text-indigo-600">NumCreditLines</td>
+                                    <td class="p-2">Int</td>
+                                    <td class="p-2">Count</td>
+                                </tr>
+                                <tr>
+                                    <td class="p-2 font-mono text-indigo-600">InterestRate</td>
+                                    <td class="p-2">Float</td>
+                                    <td class="p-2">%</td>
+                                </tr>
+                                <tr>
+                                    <td class="p-2 font-mono text-indigo-600">LoanTerm</td>
+                                    <td class="p-2">Int</td>
+                                    <td class="p-2">Months (e.g. 36)</td>
+                                </tr>
+                                <tr>
+                                    <td class="p-2 font-mono text-indigo-600">DTIRatio</td>
+                                    <td class="p-2">Float</td>
+                                    <td class="p-2">0.0 - 1.0</td>
+                                </tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Status -->
+            <div id="status" class="hidden mt-6 p-4 rounded-lg text-sm flex items-center justify-center gap-2"></div>
+        </div>
+
+        <script>
+            function updateFileName() {
+                const fileInput = document.getElementById("csvInput");
+                const fileNameDisplay = document.getElementById("fileName");
+                if (fileInput.files.length > 0) {
+                    fileNameDisplay.textContent = fileInput.files[0].name;
+                    fileNameDisplay.classList.remove("text-slate-400");
+                    fileNameDisplay.classList.add("text-slate-700", "font-medium");
+                }
+            }
+
+            function downloadTemplate() {
+                // Header matching RAW data format
+                const headers = [
+                    "LoanID",
+                    "Age",
+                    "Income",
+                    "LoanAmount",
+                    "CreditScore",
+                    "MonthsEmployed",
+                    "NumCreditLines",
+                    "InterestRate",
+                    "LoanTerm",
+                    "DTIRatio",
+                    "Education",
+                    "EmploymentType",
+                    "MaritalStatus",
+                    "HasMortgage",
+                    "HasDependents",
+                    "LoanPurpose",
+                    "HasCoSigner",
+                ];
+
+                // Sample row based on provided raw data
+                const sampleRow = ["I38PQUQS96", "56", "85994", "50587", "520", "80", "4", "15.23", "36", "0.44", "Bachelor's", "Full-time", "Divorced", "Yes", "Yes", "Other", "Yes"];
+
+                const csvContent = "data:text/csv;charset=utf-8," + headers.join(",") + "\n" + sampleRow.join(",");
+
+                const encodedUri = encodeURI(csvContent);
+                const link = document.createElement("a");
+                link.setAttribute("href", encodedUri);
+                link.setAttribute("download", "raw_loan_data_template.csv");
+                document.body.appendChild(link);
+                link.click();
+                document.body.removeChild(link);
+            }
+
+            async function compressFile(file) {
+                const stream = file.stream().pipeThrough(new CompressionStream("gzip"));
+                return new Response(stream).blob();
+            }
+
+            async function uploadAndPredict() {
+                const fileInput = document.getElementById("csvInput");
+                const btn = document.getElementById("predictBtn");
+                const status = document.getElementById("status");
+
+                if (fileInput.files.length === 0) {
+                    alert("Please select a CSV file first!");
+                    return;
+                }
+
+                btn.disabled = true;
+                btn.innerHTML = '<i class="fa-solid fa-circle-notch fa-spin"></i> Processing Pipeline...';
+                status.className = "mt-6 p-4 rounded-lg text-sm flex items-center justify-center gap-2 bg-indigo-50 text-indigo-700 block";
+                status.innerHTML = '<i class="fa-solid fa-gears fa-spin"></i> Cleaning Data & Predicting...';
+
+                try {
+                    const originalFile = fileInput.files[0];
+                    console.log("Compressing file...");
+                    const compressedBlob = await compressFile(originalFile);
+
+                    const formData = new FormData();
+                    formData.append("file", compressedBlob, originalFile.name + ".gz");
+
+                    const response = await fetch("/api/predict_batch", {
+                        method: "POST",
+                        body: formData,
+                    });
+
+                    if (!response.ok) {
+                        const err = await response.json();
+                        throw new Error(err.detail || "Prediction failed");
+                    }
+
+                    const blob = await response.blob();
+                    const url = window.URL.createObjectURL(blob);
+                    const a = document.createElement("a");
+                    a.href = url;
+                    a.download = "predictions_" + originalFile.name;
+                    document.body.appendChild(a);
+                    a.click();
+                    window.URL.revokeObjectURL(url);
+
+                    status.className = "mt-6 p-4 rounded-lg text-sm flex items-center justify-center gap-2 bg-green-50 text-green-700 block";
+                    status.innerHTML = '<i class="fa-solid fa-check-circle"></i> Success! Cleaned & Predicted.';
+                    btn.innerHTML = '<i class="fa-solid fa-check"></i> Done';
+
+                    setTimeout(() => {
+                        btn.disabled = false;
+                        btn.innerHTML = "Process & Predict";
+                    }, 3000);
+                } catch (error) {
+                    console.error(error);
+                    status.className = "mt-6 p-4 rounded-lg text-sm flex items-center justify-center gap-2 bg-red-50 text-red-700 block";
+                    status.innerHTML = `<i class="fa-solid fa-triangle-exclamation"></i> Error: ${error.message}`;
+                    btn.disabled = false;
+                    btn.innerHTML = "Process & Predict";
+                }
+            }
+        </script>
+    </body>
+</html>
